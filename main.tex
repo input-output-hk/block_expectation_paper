@@ -540,7 +540,7 @@
     
     Following the terminology given in \cite{KRDO16} the attack that consists in a fork creation is called an attack on a common prefix. There are two possible models for an adversary that is going to create a fork: the one that immediately discovers an adversarial behaviour and the one that leaves an adversary covert. We will briefly describe both of them.
     
-    Despite of the rule that a slot winner can produce only one block per slot in the given chain of blocks, nothing can prevent him from creating several blocks in the same slot but on the different chains (see Fig. \ref{fig:ouroboros_split_attack}). By doing this an adversary facilitates an attack forcing the honest slot winners to be split between two chains. In what follows we call such an adversary as "super adversary".
+    Despite of the rule that a slot winner can produce only one block per slot in the given chain of blocks, nothing can prevent him from creating several blocks in the same slot but on the different chains (see Fig. \ref{fig:ouroboros_split_attack}). By doing this an adversary facilitates an attack forcing the honest slot winners to be split between two chains. In what follows we will call such an adversary as general adversary.
     \begin{figure}[h] 
         \centering
         \includegraphics[width=0.75\textwidth]{ouroboros_split_attack}
@@ -552,19 +552,113 @@
     
     An interested reader could find more details in \cite{KRDO16, RMKQ17}.
     
-    \subsection{Experimental results}
+    \subsubsection{General adversary} \label{sec:general_adv}
     
-    In order to get insights on the density of forks produced by different types of adversaries and to compare them with other consensus protocols, we run several experiments. The results are shown in the Table. \ref{tbl:ouroboros_fork_lengths}.
+     A central point of the security arguments given in \cite{KRDO16} is the notions of the \textit{characteristic} and \textit{forkable strings}. A \textit{characteristic string} is a binary string \(\{0,1\}^n\) where each element indicates a slot that is assigned either to adversary (denoted with 1) or to honest user (denoted with 0). A \textit{forkable string} is a characteristic string with such disposition of adversarial slots that allows fork creation. 
+     
+     Understanding density of the forkable strings among all characteristic strings will help to determine the probability of an attack. In \cite{KRDO16} an upper bound on the probability of a string being forkable is given. In our research we are interested in the exact probabilities of forks. To obtain such probabilities we utilize recursive algorithm that detects a forkable string (see lemma 4.18 in \cite{KRDO16} for more details):
+     
+     \begin{equation} \label{eq:forkable_string}
+     \begin{tabular}{l}
+        m(w1) = (\lambda(w)+1, \mu(w)+1),\ and  \\[0.1cm]
+        m(w0) = 
+        \left \{
+            \begin{tabular}{ll}
+                (\lambda(w)-1,0)         & if \lambda(w) > \mu(w)=0 \\
+                (0,\mu(w)-1)             & if \lambda(w) = 0 \\
+                (\lambda(w)-1,\mu(w)-1)  & otherwise,
+            \end{tabular}
+        \right \)
+     \end{tabular}
+     \end{equation}
+     where 
+     
+     \(w\) - characteristic string;
+     
+     \(m(w) = (\lambda, \mu)\) - a state of the string \(w\) represented by two variables \(\lambda\) and \(\mu\);
+     
+     \(m(\epsilon) = (0,0)\) - initial state of the algorithm.
+     
+     Given a characteristic string \(w\) and initial state \(m(\epsilon\)), the state is updated sequentially with each element of the string. Finally, when all elements from \(w\) are processed, the variable \(\mu\) is checked: if \(\mu \geq 0\) then the string \(w\) is forkable, otherwise it is not.
+     
+     Having such an algorithm it is possible to calculate the overall probability of a fork for a string of particular length. It could be done by constructing a matrix of probabilities of all possible states (Fig. \ref{matrix_fork_strings}). 
     
-    \myworries{TODO: describe algorithms used for simulation}
+     \begin{figure}[h!]
+        \label{matrix_fork_strings}
+        \centering
+        \begin{tabular}{|p{0.75cm}|p{0.75cm}|p{0.75cm}|p{0.75cm}|p{0.75cm}|p{0.75cm}|p{0.75cm}|p{0.75cm}|p{0.75cm}|}
+             \hline
+             \(p^{(n)}_{0,-n}\) & ... & \(p^{(n)}_{0,-2}\) & \(p^{(n)}_{0,-1}\) & \(p^{(n)}_{0,0}\) & \(p^{(n)}_{0,1}\) & \(p^{(n)}_{0,2}\) & ... & \(p^{(n)}_{0,n}\) \\
+             \hline
+             \(p^{(n)}_{1,-n}\) & ... & \(p^{(n)}_{1,-2}\) & \(p^{(n)}_{1,-1}\) & \(p^{(n)}_{1,0}\) & \(p^{(n)}_{1,1}\) & \(p^{(n)}_{1,2}\) & ... & \(p^{(n)}_{1,n}\) \\
+             \hline
+             \(p^{(n)}_{2,-n}\) & ... & \(p^{(n)}_{2,-2}\) & \(p^{(n)}_{2,-1}\) & \(p^{(n)}_{2,0}\) & \(p^{(n)}_{2,1}\) & \(p^{(n)}_{2,2}\) & ... & \(p^{(n)}_{2,n}\) \\
+             \hline
+             ...          & ... & ...          & ...          & ...         & ...         & ...         & ... & ...         \\
+             \hline
+             \(p^{(n)}_{n,-n}\) & ... & \(p^{(n)}_{n,-2}\) & \(p^{(n)}_{n,-1}\) & \(p^{(n)}_{n,0}\) & \(p^{(n)}_{n,1}\) & \(p^{(n)}_{n,2}\) & ... & \(p^{(n)}_{n,n}\) \\
+             \hline
+        \end{tabular}
+        \caption{The matrix shows the probabilities of a random characteristic string \(w\) of length \(n\) turns out in state \(m(w)=(i,j)\). It is indexed by all possible \(\lambda\) and \(\mu\) values that could be reach by the string of length \(n\).}
+    \end{figure}
     
-    Because a synchrony between time slots is assumed in the Ouroboros protocol, it does not make sense to consider the parameter \(k\) as we did for other consensus protocols.
+    The matrix could be calculated recursively using the following rules (based on the algorithm \ref{eq:forkable_string}):
+     \[\begin{tabular}{l}
+        p^{0}_{0,0} = 1\ and\ p^{0}_{i,j} = 0,\ for\ i \neq 0\ or\ j \neq 0, \\[0.2cm] 
+        p^{n}_{i,j} = lam1\cdot q\cdot p^{n-1}_{i-1,j-1} + mu1 (1-q)p^{n-1}_{i+1,j+1} + mu2(1-q)p^{n-1}_{i+1,0} + lam2(1-q)p^{n-1}_{0,j+1}, \\[0.2cm]
+        lam1 = 
+        \left \{
+            \begin{tabular}{ll}
+                1 & if \(i > 0\), \\
+                0 & otherwise;
+            \end{tabular}
+        \right \)
+        lam2 = 
+        \left \{
+            \begin{tabular}{ll}
+                1 & if \(i = 0\), \\
+                0 & otherwise;
+            \end{tabular}
+        \right \) \\[0.1cm]
+        mu1 = 
+        \left \{
+            \begin{tabular}{ll}
+                1 & if \(j \neq 0\), \\
+                0 & otherwise;
+            \end{tabular}
+        \right \)
+        mu2 = 
+        \left \{
+            \begin{tabular}{ll}
+                1 & if \(j = 0\), \\
+                0 & otherwise.
+            \end{tabular}
+        \right \)
+     \end{tabular}\]
+     where \(q\) is a fraction of the adversarial stake.
+     
+     Finally, the probability that an adversary with \(q\) fraction of stake would be able to create a fork of \(n\) slots could be defined as follows:
+     \begin{equation} \label{eq:fork_prob}
+         DS(q,n) = \sum_{i=0}^{n}{\sum_{j=0}^{n}{p_{i,j}^{(n)}}}.
+     \end{equation}
+     
+     Note that it is also possible to estimate the probability of a fork by simulating an attack directly. It could be done by generating random binary strings (taking into account the probability of adversarial slot) and checking them with algorithm \ref{eq:forkable_string}. The results are conforms to those obtained analytically with equation \ref{eq:fork_prob}.
+     
+    \subsubsection{Covert Adversary} \label{sec:covert_adv}
+    
+    TODO
+    
+    \subsection{Probabilities of a fork}
+    
+    In order to get insights on the density of forks produced by different types of adversaries and to compare them with other consensus protocols, we made calculation using equations from sections \ref{sec:general_adv} and \ref{sec:covert_adv}. The results are shown in Table \ref{tbl:ouroboros_fork_lengths}.
+    
+    Because a synchrony between time slots is assumed in the Ouroboros protocol, it does not make sense to consider the parameter \(k\) (time between blocks) as we did for other consensus protocols.
     \begin{table}[h!]
         \label{tbl:ouroboros_fork_lengths}
         \centering
     \begin{tabular}{ | c || c | c | }
          \hline 
-         Adversarial stake & Super Adversary & Covert Adversary \\
+         Adversarial stake & General Adversary & Covert Adversary \\
          \hline
          0.1   & 15  & 9   \\
          0.15  & 23  & 15  \\
@@ -580,7 +674,7 @@
          0.49  & 61922  & 23869 \\
          \hline
     \end{tabular}
-    \caption{Fork lengths that an adversary with a given part of the total stake can maintain with the probability at least 0.1\%.}
+    \caption{The number of slots that a user should wait to be 99.9\% sure that his transaction would not be reverted by an adversary with the given stake.}
     \end{table}
 	
 	\section{Protocols comparison}
@@ -589,32 +683,32 @@
 	
 	The chosen measure appears to be relevant for a real-world application because it shows how long a user should wait to accept a payment transaction, thus decreasing the possibility of the double-spend attack to acceptable level.
 	
-	The summarized results are presented in Table \ref{tbl:fork_lengths_comparison}. It includes two models for Ouroboros (with super and covert adversary), classic Bitcoin double-spend attack, Bitcoin splitting attack (including hypothetical Bitcoin with reduced block generation time to one per communication round) and GHOST splitting attack.
+	The summarized results are presented in Table \ref{tbl:fork_lengths_comparison}. It includes two models for Ouroboros (with general and covert adversaries), classic Bitcoin double-spend attack, Bitcoin splitting attack (including hypothetical Bitcoin with reduced block generation time to one per communication round) and GHOST splitting attack.
 	
 	\myworries{TODO: analyse results from table \ref{tbl:fork_lengths_comparison}. Maybe add some additional charts. It could be helpful to compare protocols not only by number of confirmations but also by waiting time}
 	
 	\begin{table}[h!]
         \label{tbl:fork_lengths_comparison}
         \centering
-    \begin{tabular}{|p{1.6cm}||p{1.5cm}|p{1.5cm}|p{1cm}|p{1cm}|p{1cm}|p{1cm}|p{1.2cm}|p{1.2cm}|}
-         \hline 
-         Adversarial stake (hashing power) & Ouroboros Super Adversary & Ouroboros Covert Adversary & Bitcoin (Rosenfeld) & Bitcoin (Pinzon) & Bitcoin splitting k=47.6 & Bitcoin splitting k=1 & GHOST splitting k=47.6 & GHOST splitting \(k=1\) \\
-         \hline
-         0.1   & 15     & 9     & 6     & 5     & 3  & 6  & 3   & 6     \\
-         0.15  & 23     & 15    & 9     & 8     & 4  & 7  & 4   & 8     \\
-         0.2   & 35     & 21    & 13    & 12    & 4  & 8  & 6   & 11    \\
-         0.25  & 55     & 33    & 20    & 19    & 5  & 9  & 9   & 19    \\
-         0.3   & 94     & 55    & 32    & 32    & 6  & 10 & 9   & 30    \\
-         0.35  & 181    & 101   & 58    & 58    & 8  & 12 & 11  & 73    \\
-         0.4   & 443    & 235   & 133   & 134   & 9  & 14 & 12  & 185   \\
-         0.45  & 1990   & 951   & 539   & 541   & 14 & 18 & 13  & 509   \\
-         0.46  & 3214   & 1487  & 844   & 846   &    &    &     &       \\
-         0.47  & 5953   & 2649  & 1502  & 1505  &    &    &     &       \\
-         0.48  & 14157  & 5965  & 3382  & 3387  &    &    &     &       \\
-         0.49  & 61922  & 23869 & 13533 & 13544 &    &    &     &       \\
-         \hline
-    \end{tabular}
-    \caption{Fork lengths that an adversary with a given part of the total stake (or hashing power in case of proof-of-work) can maintain with the probability at least 0.1\%.}
+        \begin{tabular}{|p{1.6cm}||p{1.5cm}|p{1.5cm}|p{1cm}|p{1cm}|p{1cm}|p{1cm}|p{1.2cm}|p{1.2cm}|}
+             \hline 
+             Adversarial stake (hashing power) & Ouroboros General Adversary & Ouroboros Covert Adversary & Bitcoin (Rosenfeld) & Bitcoin (Pinzon) & Bitcoin splitting k=47.6 & Bitcoin splitting k=1 & GHOST splitting k=47.6 & GHOST splitting \(k=1\) \\
+             \hline
+             0.1   & 15     & 9     & 6     & 5     & 3  & 6  & 3   & 6     \\
+             0.15  & 23     & 15    & 9     & 8     & 4  & 7  & 4   & 8     \\
+             0.2   & 35     & 21    & 13    & 12    & 4  & 8  & 6   & 11    \\
+             0.25  & 55     & 33    & 20    & 19    & 5  & 9  & 9   & 19    \\
+             0.3   & 94     & 55    & 32    & 32    & 6  & 10 & 9   & 30    \\
+             0.35  & 181    & 101   & 58    & 58    & 8  & 12 & 11  & 73    \\
+             0.4   & 443    & 235   & 133   & 134   & 9  & 14 & 12  & 185   \\
+             0.45  & 1990   & 951   & 539   & 541   & 14 & 18 & 13  & 509   \\
+             0.46  & 3214   & 1487  & 844   & 846   &    &    &     &       \\
+             0.47  & 5953   & 2649  & 1502  & 1505  &    &    &     &       \\
+             0.48  & 14157  & 5965  & 3382  & 3387  &    &    &     &       \\
+             0.49  & 61922  & 23869 & 13533 & 13544 &    &    &     &       \\
+             \hline
+        \end{tabular}
+        \caption{Fork lengths that an adversary with a given part of the total stake (or hashing power in case of proof-of-work) can maintain with the probability at least 0.1\%.}
     \end{table}
 	
 	\section{Conclusions}
